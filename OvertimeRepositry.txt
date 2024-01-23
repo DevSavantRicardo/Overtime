@@ -1,0 +1,999 @@
++            {            
+                    +              "timeZone": "America/Bogota",            
+                    +              "dependencies": {            
+                    +                "enabledAdvancedServices": [            
+                    +                  {            
+                    +                    "userSymbol": "Sheets",            
+                    +                    "version": "v4",            
+                    +                    "serviceId": "sheets"            
+                    +                  }            
+                    +                ]            
+                    +              },            
+                    +              "exceptionLogging": "STACKDRIVER",            
+                    +              "runtimeVersion": "V8",            
+                    +              "webapp": {            
+                    +                "executeAs": "USER_ACCESSING",            
+                    +                "access": "DOMAIN"            
+                    +              }            
+                    +            }            
+        @@ -1,0 +1,453 @@    
+                    +            /**            
+                    +             * Creating a Google Sheets Data Entry Form for CRUD Operations            
+                    +             * By: bpwebs.com            
+                    +             * Post URL: https://www.bpwebs.com/crud-operations-on-google-sheets-with-online-forms            
+                    +             */            
+                    +            
+                    +            //CONSTANTS            
+                    +            const SPREADSHEETID = "1tnJfW5_RfATbm80ODaB7Z2CJU4wQUSkq0kb3pXSQPmU";            
+                    +            const DATARANGE = "Data!A2:O";            
+                    +            const DATASHEET = "Data";            
+                    +            const DATASHEETID = "0";            
+                    +            const LASTCOL = "P";            
+                    +            const LASTCOL2 = "K";            
+                    +            const IDRANGE = "Data!A2:A";            
+                    +            //const DROPDOWNRANGE = "Employees!I:I"; //BAMBOO LIST            
+                    +            
+                    +            var usermail =""            
+                    +            var fechaActual = ""            
+                    +            var tipo1= 0            
+                    +            var idUnique = 0            
+                    +            //Display HTML page            
+                    +            function doGet(request) {            
+                    +                          
+                    +              let html = HtmlService.createTemplateFromFile('Index').evaluate();            
+                    +              let htmlOutput = HtmlService.createHtmlOutput(html);            
+                    +              htmlOutput.addMetaTag('viewport', 'width=device-width, initial-scale=1');            
+                    +              return htmlOutput;            
+                    +            }            
+                    +            
+                    +            function getRecords(){            
+                    +              const ss = SpreadsheetApp.openById(SPREADSHEETID);            
+                    +              const wd = ss.getSheetByName("Employees");            
+                    +              const datos = wd.getDataRange().getDisplayValues();            
+                    +              datos.shift();            
+                    +              //console.log(datos);            
+                    +              return datos;            
+                    +            }            
+                    +            
+                    +            //PROCESS SUBMITTED FORM DATA            
+                    +            function processForm(formObject) {            
+                    +              if (formObject.recId && checkId(formObject.recId)) {            
+                    +                idUnique =formObject.recId.value;            
+                    +                const values = [[            
+                    +                  formObject.recId,            
+                    +                  filldate(),            
+                    +                  formObject.leaderName,            
+                    +                  formObject.bambooCode,            
+                    +                  formObject.contributorName,            
+                    +                  formObject.dateOvertime,            
+                    +                  formObject.month,            
+                    +                  formObject.startTime,            
+                    +                  formObject.endTime,            
+                    +                  formObject.reason,            
+                    +                  formObject.day,            
+                    +                  formObject.type1,            
+                    +                  formObject.type2,            
+                    +                  formObject.type3,            
+                    +                  formObject.type4              
+                    +                ]];            
+                    +                const updateRange = getRangeById(formObject.recId);            
+                    +                //Update the record            
+                    +                updateRecord(values, updateRange);            
+                    +                formatear();            
+                    +              } else {            
+                    +                //Prepare new row of data            
+                    +                let values = [[            
+                    +                  generateUniqueId(),            
+                    +                  filldate(),            
+                    +                  formObject.leaderName,            
+                    +                  formObject.bambooCode,            
+                    +                  formObject.contributorName,            
+                    +                  formObject.dateOvertime,            
+                    +                  formObject.month,            
+                    +                  formObject.startTime,            
+                    +                  formObject.endTime,            
+                    +                  formObject.reason,            
+                    +                  formObject.day,            
+                    +                  formObject.type1,            
+                    +                  formObject.type2,            
+                    +                  formObject.type3,            
+                    +                  formObject.type4            
+                    +                ]];            
+                    +            
+                    +                //Create new record            
+                    +                createRecord(values);            
+                    +                formatear();            
+                    +              }            
+                    +            
+                    +            
+                    +              //Return the last 10 records            
+                    +              return getLastTenRecords();            
+                    +            }            
+                    +            
+                    +            
+                    +            /**            
+                    +             * CREATE RECORD            
+                    +             * REF:            
+                    +             * https://developers.google.com/sheets/api/guides/values#append_values            
+                    +             */            
+                    +            function createRecord(values) {            
+                    +              try {            
+                    +                let valueRange = Sheets.newRowData();            
+                    +                valueRange.values = values;            
+                    +            
+                    +                let appendRequest = Sheets.newAppendCellsRequest();            
+                    +                appendRequest.sheetId = SPREADSHEETID;            
+                    +                appendRequest.rows = valueRange;            
+                    +            
+                    +                Sheets.Spreadsheets.Values.append(valueRange, SPREADSHEETID, DATARANGE, { valueInputOption: "RAW" });            
+                    +              } catch (err) {            
+                    +                console.log('Failed with error %s', err.message);            
+                    +              }            
+                    +              // return getLastTenRecords();            
+                    +            }            
+                    +            
+                    +            /**            
+                    +             * READ RECORD            
+                    +             * REF:            
+                    +             * https://developers.google.com/sheets/api/guides/values#read            
+                    +             */            
+                    +            function readRecord(range) {            
+                    +              try {            
+                    +                let result = Sheets.Spreadsheets.Values.get(SPREADSHEETID, range);            
+                    +                return result.values;            
+                    +              } catch (err) {            
+                    +                console.log('Failed with error %s', err.message);            
+                    +              }            
+                    +              return getLastTenRecords();            
+                    +            }            
+                    +            
+                    +            /**            
+                    +             * UPDATE RECORD            
+                    +             * REF:            
+                    +             * https://developers.google.com/sheets/api/guides/values#write_to_a_single_range            
+                    +             */            
+                    +            function updateRecord(values, updateRange) {            
+                    +              try {            
+                    +                let valueRange = Sheets.newValueRange();            
+                    +                valueRange.values = values;            
+                    +                Sheets.Spreadsheets.Values.update(valueRange, SPREADSHEETID, updateRange, { valueInputOption: "RAW" });            
+                    +              } catch (err) {            
+                    +                console.log('Failed with error %s', err.message);            
+                    +              }            
+                    +            }            
+                    +            
+                    +            
+                    +            /**            
+                    +             * DELETE RECORD            
+                    +             * Ref:            
+                    +             * https://developers.google.com/sheets/api/guides/batchupdate            
+                    +             * https://developers.google.com/sheets/api/samples/rowcolumn#delete_rows_or_columns            
+                    +            */            
+                    +            function deleteRecord(id) {            
+                    +              const rowToDelete = getRowIndexById(id);            
+                    +              const deleteRequest = {            
+                    +                "deleteDimension": {            
+                    +                  "range": {            
+                    +                    "sheetId": DATASHEETID,            
+                    +                    "dimension": "ROWS",            
+                    +                    "startIndex": rowToDelete,            
+                    +                    "endIndex": rowToDelete + 1            
+                    +                  }            
+                    +                }            
+                    +              };            
+                    +              Sheets.Spreadsheets.batchUpdate({ "requests": [deleteRequest] }, SPREADSHEETID);            
+                    +              return getLastTenRecords();            
+                    +            }            
+                    +            
+                    +            
+                    +            /**            
+                    +             * RETURN LAST 10 RECORDS IN THE SHEET            
+                    +             */            
+                    +            function getLastTenRecords() {            
+                    +                          
+                    +              let lastRow = readRecord(DATARANGE).length + 1;            
+                    +              let startRow = lastRow - 9;            
+                    +              if (startRow < 2) { //If less than 10 records, eleminate the header row and start from second row            
+                    +                startRow = 2;            
+                    +              }            
+                    +              let range = DATASHEET + "!A" + startRow + ":" + LASTCOL2 + lastRow;            
+                    +              let lastTenRecords = readRecord(range);            
+                    +              //Logger.log(lastTenRecords);            
+                    +              return lastTenRecords;            
+                    +            }            
+                    +            
+                    +            
+                    +            //GET ALL RECORDS            
+                    +            function getAllRecords() {            
+                    +              const allRecords = readRecord(DATARANGE);            
+                    +              return allRecords;            
+                    +            }            
+                    +            
+                    +            //GET RECORD FOR THE GIVEN ID            
+                    +            function getRecordById(id) {            
+                    +              if (!id || !checkId(id)) {            
+                    +                return null;            
+                    +              }            
+                    +              const range = getRangeById(id);            
+                    +              if (!range) {            
+                    +                return null;            
+                    +              }            
+                    +              const result = readRecord(range);            
+                    +              return result;            
+                    +            }            
+                    +            
+                    +            function getRowIndexById(id) {            
+                    +              if (!id) {            
+                    +                throw new Error('Invalid ID');            
+                    +              }            
+                    +            
+                    +              const idList = readRecord(IDRANGE);            
+                    +              for (var i = 0; i < idList.length; i++) {            
+                    +                if (id == idList[i][0]) {            
+                    +                  var rowIndex = parseInt(i + 1);            
+                    +                  return rowIndex;            
+                    +                }            
+                    +              }            
+                    +            }            
+                    +            
+                    +            
+                    +            //VALIDATE ID            
+                    +            function checkId(id) {            
+                    +              const idList = readRecord(IDRANGE).flat();            
+                    +              return idList.includes(id);            
+                    +            }            
+                    +            
+                    +            
+                    +            //GET DATA RANGE IN A1 NOTATION FOR GIVEN ID            
+                    +            function getRangeById(id) {            
+                    +              if (!id) {            
+                    +                return null;            
+                    +              }            
+                    +              const idList = readRecord(IDRANGE);            
+                    +              const rowIndex = idList.findIndex(item => item[0] === id);            
+                    +              if (rowIndex === -1) {            
+                    +                return null;            
+                    +              }            
+                    +              const range = `Data!A${rowIndex + 2}:${LASTCOL}${rowIndex + 2}`;            
+                    +              return range;            
+                    +            }            
+                    +            
+                    +            
+                    +            //INCLUDE HTML PARTS, EG. JAVASCRIPT, CSS, OTHER HTML FILES            
+                    +            function include(filename) {            
+                    +              return HtmlService.createHtmlOutputFromFile(filename)            
+                    +                .getContent();            
+                    +            }            
+                    +            
+                    +            //GENERATE UNIQUE ID            
+                    +            function generateUniqueId() {            
+                    +              let id = Utilities.getUuid();            
+                    +              return id;            
+                    +              //Logger.log(id)            
+                    +            }            
+                    +            
+                    +            //function employeesList() {            
+                    +              //employeesList = readRecord(DROPDOWNRANGE);            
+                    +              //return employeesList;            
+                    +            //}            
+                    +            
+                    +            //SEARCH RECORDS            
+                    +            function searchRecords(formObject) {            
+                    +              let result = [];            
+                    +              try {            
+                    +                if (formObject.searchText) {//Execute if form passes search text            
+                    +                  const data = readRecord(DATARANGE);            
+                    +                  const searchText = formObject.searchText;            
+                    +            
+                    +                  // Loop through each row and column to search for matches            
+                    +                  for (let i = 0; i < data.length; i++) {            
+                    +                    for (let j = 0; j < data[i].length; j++) {            
+                    +                      const cellValue = data[i][j];            
+                    +                      if (cellValue.toLowerCase().includes(searchText.toLowerCase())) {            
+                    +                        result.push(data[i]);            
+                    +                        break; // Stop searching for other matches in this row            
+                    +                      }            
+                    +                    }            
+                    +                  }            
+                    +                }            
+                    +              } catch (err) {            
+                    +                console.log('Failed with error %s', err.message);            
+                    +              }            
+                    +              return result;            
+                    +            }            
+                    +            
+                    +            function email(){            
+                    +            const Wb = SpreadsheetApp.openById(SPREADSHEETID);            
+                    +            const Wu = Wb.getSheetByName("Employees");            
+                    +              umail = Session.getActiveUser().getEmail();            
+                    +              Lr = Wu.getLastRow();            
+                    +              for(i=1;i<=Lr;i++){            
+                    +                if(Wu.getRange(i,3).getValue()==umail){            
+                    +                  var nombreUser= Wu.getRange(i,2).getValue();            
+                    +                }             
+                    +              }            
+                    +            usermail = nombreUser;            
+                    +            return nombreUser            
+                    +            //Logger.log(usermail)            
+                    +            }            
+                    +            
+                    +            function formato(){            
+                    +              var DateString=(new Date()).toString();            
+                    +              Logger.log (DateString);            
+                    +            }            
+                    +            
+                    +            function filldate(){            
+                    +              var fecha = new Date(); //Fecha actual            
+                    +              var mes = fecha.getMonth()+1; //obteniendo mes            
+                    +              var dia = fecha.getDate(); //obteniendo dia            
+                    +              var ano = fecha.getFullYear(); //obteniendo año            
+                    +              if(dia<10){            
+                    +                dia='0'+dia; //agrega cero si el menor de 10            
+                    +              }            
+                    +              if(mes<10){            
+                    +              mes='0'+mes //agrega cero si el menor de 10            
+                    +              }            
+                    +              //document.getElementById('regDate').value = mes + "/" + dia + "/" +ano;            
+                    +              var fechaform =  ano + "-" + mes + "-" +dia;            
+                    +              fechaActual = fechaform;            
+                    +              //Logger.log(fechaActual)            
+                    +              return fechaActual;             
+                    +            }            
+                    +            
+                    +            
+                    +            function getType(){            
+                    +                          
+                    +              var spreadsheet = SpreadsheetApp.openById(SPREADSHEETID);            
+                    +              var sheet = spreadsheet.getSheetByName("Data");            
+                    +              var row = sheet.getLastRow();            
+                    +              var startHour = new Date(sheet.getRange(row, 8).getValue());            
+                    +              var endHour = new Date(sheet.getRange(row, 9).getValue());            
+                    +              var dayOfWeek = sheet.getRange(row, 11).getValue(); // Debe contener el nombre del día en inglés            
+                    +              // Mapeo de nombres de días en inglés a números            
+                    +              var dayOfWeekMapping = {            
+                    +                "Sunday": 7,            
+                    +                "Monday": 1,            
+                    +                "Tuesday": 2,            
+                    +                "Wednesday": 3,            
+                    +                "Thursday": 4,            
+                    +                "Friday": 5,            
+                    +                "Saturday": 6            
+                    +              };            
+                    +              var dayOfWeekNumber = dayOfWeekMapping[dayOfWeek]; // Convertir el nombre del día en número            
+                    +              var horasSheet = spreadsheet.getSheetByName("Types");            
+                    +              var horasData = horasSheet.getRange(2, 2, 21, 4).getValues(); // Asumiendo 21 filas en la hoja "Types".            
+                    +              var tipo1Hours = 0;            
+                    +              var tipo2Hours = 0;            
+                    +              var tipo3Hours = 0;            
+                    +              var tipo4Hours = 0;            
+                    +              for (var i = 0; i < horasData.length; i++) {            
+                    +                if (horasData[i][3] == dayOfWeekNumber) {            
+                    +                  var startComparison = new Date(horasData[i][1]);            
+                    +                  var endComparison = new Date(horasData[i][2]);            
+                    +                  if (startHour <= endComparison && endHour >= startComparison) {            
+                    +                    var overlapStart = (startHour > startComparison) ? startHour : startComparison;            
+                    +                    var overlapEnd = (endHour < endComparison) ? endHour : endComparison;            
+                    +                    var overlapHours = (overlapEnd - overlapStart) / (1000 * 60 * 60);            
+                    +                    if (horasData[i][0] == 1) {            
+                    +                      tipo1Hours += overlapHours;            
+                    +                    } else if (horasData[i][0] == 2) {            
+                    +                      tipo2Hours += overlapHours;            
+                    +                    } else if (horasData[i][0] == 3) {            
+                    +                      tipo3Hours += overlapHours;            
+                    +                    } else if (horasData[i][0] == 4) {            
+                    +                      tipo4Hours += overlapHours;            
+                    +                    }            
+                    +                  }            
+                    +                }            
+                    +              }            
+                    +              sheet.getRange(row, 12).setValue(tipo1Hours);            
+                    +              sheet.getRange(row, 13).setValue(tipo2Hours);            
+                    +              sheet.getRange(row, 14).setValue(tipo3Hours);            
+                    +              sheet.getRange(row, 15).setValue(tipo4Hours);            
+                    +            
+                    +            }            
+                    +            
+                    +            function construirCampo() {            
+                    +              // Obtiene la hoja activa            
+                    +              var hoja = spreadsheet = SpreadsheetApp.openById(SPREADSHEETID);            
+                    +              var sheet = hoja.getSheetByName("Data");            
+                    +              var sheet2 = hoja.getSheetByName("Users");            
+                    +              var fila = sheet.getLastRow();            
+                    +              var valor1 = sheet.getRange(fila,4).getValue();            
+                    +              var fechaEvento = sheet.getRange(fila,6).getValue();            
+                    +              var mesEvento = sheet.getRange(fila,7).getValue();            
+                    +              var diaEventoFormateado = Utilities.formatDate(new Date(fechaEvento), "GMT-5", "yy");            
+                    +              sheet.getRange(fila,16).setValue(valor1 + "_" + mesEvento.substring(0, 3) + "_" + diaEventoFormateado);            
+                    +              revalidar();            
+                    +            }            
+                    +            
+                    +            function revalidar(){            
+                    +              var hoja = spreadsheet = SpreadsheetApp.openById(SPREADSHEETID);            
+                    +              var sheet = hoja.getSheetByName("Data");            
+                    +              var sheet2 = hoja.getSheetByName("Users");            
+                    +              var fila = sheet.getLastRow();            
+                    +              var valor1 = sheet.getRange(fila,4).getValue();            
+                    +              var mesEvento = sheet.getRange(fila,7).getValue();            
+                    +              /* var dia = sheet.getRange(fila,2);            
+                    +              var dia =  Utilities.formatDate(new Date(dia), "GMT-5", "dd"); */            
+                    +              var fecha = sheet.getRange(fila,2).getValue();            
+                    +              var dia =  Utilities.formatDate(new Date(fecha), "GMT-5", "dd");            
+                    +              if (dia >= 25){            
+                    +                for(i=1;i<=12;i++){            
+                    +                  if (mesEvento == sheet2.getRange(i,6).getValue()){            
+                    +                    sheet.getRange(fila,16).setValue(valor1 + "_" + sheet2.getRange(i,7).getValue() + "_" + sheet2.getRange(i,8).getValue());            
+                    +                    break;            
+                    +                  }            
+                    +                }            
+                    +              }            
+                    +            }            
+                    +            
+                    +            function formatear() {            
+                    +              const Wb = SpreadsheetApp.openById(SPREADSHEETID);            
+                    +              const Ws = Wb.getSheetByName("Data");            
+                    +            
+                    +              const regisDate = Ws.getRange('B2:B');            
+                    +              regisDate.setNumberFormat("d/m/yyyy");            
+                    +            
+                    +              const bambooCod = Ws.getRange('D2:D');            
+                    +              bambooCod.setNumberFormat('0');            
+                    +            
+                    +              const overDate = Ws.getRange('F2:F');            
+                    +              overDate.setNumberFormat("d/m/yyyy");            
+                    +            
+                    +              const times = Ws.getRange('H2:I');            
+                    +              times.setNumberFormat("H:mm:ss");            
+                    +            
+                    +              const hours = Ws.getRange('L2:O');            
+                    +              hours.setNumberFormat('0.00');            
+                    +              getType();            
+                    +              construirCampo();            
+                    +            }            
+                    +            
+                    +            function sleep(){            
+                    +              Utilities.sleep(2000);            
+                    +            }            
+                    +            
+                    +            function extraerDiaDeFecha() {            
+                    +              const Wb = SpreadsheetApp.openById(SPREADSHEETID);            
+                    +              const Ws = Wb.getSheetByName("Data");            
+                    +              var celda = Ws.getRange('B2').getValue();            
+                    +            
+                    +              // Verifica si la celda contiene una fecha            
+                    +              if (celda instanceof Date) {            
+                    +                var dia = celda.getDate();            
+                    +                Logger.log(dia); // Imprime el día en el registro de Apps Script            
+                    +                return dia;            
+                    +              } else {            
+                    +                Logger.log('La celda no contiene una fecha válida');            
+                    +                return 'La celda no contiene una fecha válida';            
+                    +              }            
+                    +            }            
+                    +            
+        @@ -1,0 +1,79 @@    
+                    +            <!DOCTYPE html>            
+                    +            <html>            
+                    +            
+                    +            <head>            
+                    +              <title>Overtime Details</title>            
+                    +              <?!= include('JavaScript'); ?>  <!-- See JavaScript.html file -->            
+                    +              <?!= include('CSS'); ?>  <!-- See CSS.html file -->            
+                    +            </head>            
+                    +            
+                    +            <body>            
+                    +              <div class="img-logo">            
+                    +                <img id="Logo"  src="https://devsavant.com/wp-content/uploads/2023/11/image-15.png" alt="DevSavant " alt="Logo" class="logo entered lazyloaded" data-ll-status="entered">            
+                    +              </div>            
+                    +              <div class="titulo">            
+                    +                <h2>Overtime Record</h2>            
+                    +              </div>            
+                    +              <div class="container">            
+                    +                <div class="row">            
+                    +                  <div class="col-lg-5">            
+                    +                    <?!= include('FormRecordDetails'); ?>            
+                    +                  </div>            
+                    +                  <div class="col-lg-7">            
+                    +                    <?!= include('DataTable'); ?>            
+                    +                  </div>            
+                    +                </div>            
+                    +              </div>            
+                    +              <?!= include('SpinnerModal'); ?>            
+                    +              <script>            
+                    +                window.addEventListener("load",loadinfoDataList);            
+                    +                const dtlRecords = document.getElementById("datalistOptions");            
+                    +            
+                    +                function loadinfoDataList(){            
+                    +                  //console.log('Datalist')            
+                    +                  google.script.run            
+                    +                  .withSuccessHandler( chargeData )            
+                    +                  .getRecords();            
+                    +                }            
+                    +                function chargeData( dataRecords){            
+                    +                  const inputRecords = document.getElementById("datalistOptions")            
+                    +                  dataRecords.forEach( record =>{            
+                    +                    const option = document.createElement("option");            
+                    +                    option.value = record[1];            
+                    +                    option.text = "Id: " + record[0] + ", Report to: " + record[3] + ", Division: " + record[5];            
+                    +                    option.dataset.bamboo = record[0];            
+                    +                    option.dataset.leader = record[3];            
+                    +                    inputRecords.appendChild( option );            
+                    +                  });            
+                    +                }            
+                    +                function loadInfo( datalist ){            
+                    +                  for (let i = 0; i< dtlRecords.options.length; i++){            
+                    +                    if( dtlRecords.options[i].value == datalist.value){            
+                    +                      //console.log("Value Found " + datalist.value);            
+                    +                      document.getElementById("bambooCode").value = dtlRecords.options[i].getAttribute("data-bamboo");            
+                    +                      document.getElementById("leaderName").value = dtlRecords.options[i].getAttribute("data-leader");            
+                    +                      break;            
+                    +                    }else{            
+                    +                      document.getElementById("bambooCode").value = "";              
+                    +                    }            
+                    +                  }            
+                    +                }            
+                    +                function loadLeader(){            
+                    +                  document.getElementById("leaderName").value = nombreUser;            
+                    +                }            
+                    +            
+                    +                function fillDate() {            
+                    +                  var fechaInput = document.getElementById("regDate");            
+                    +                  var fechaActual = new Date();            
+                    +                  var options = { year: 'numeric', month: '2-digit', day: '2-digit' };            
+                    +                  var fechaFormateada = fechaActual.toLocaleDateString('es-ES', options);            
+                    +            
+                    +                  fechaInput.value = fechaFormateada;            
+                    +                }            
+                    +            
+                    +                  // Llama a la función para llenar el input cuando la página se carga            
+                    +                  //google.script.run.withSuccessHandler(fillDate).getServerDate();            
+                    +              </script>            
+                    +            </body>            
+                    +            
+                    +            </html>            
+        @@ -1,0 +1,183 @@    
+                    +            <script src="https://code.jquery.com/jquery-3.5.1.js"></script>            
+                    +            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"            
+                    +              integrity="sha384-ENjdO4Dr2bkBIFxQpeoTz1HIcje39Wm4jDKdf19U8gI4ddQ3GYNS7NTKfAdVQSZe" crossorigin="anonymous"></script>            
+                    +            
+                    +            <script>            
+                    +              // Prevent forms from submitting.            
+                    +              function preventFormSubmit() {            
+                    +                var forms = document.querySelectorAll('form');            
+                    +                for (var i = 0; i < forms.length; i++) {            
+                    +                  forms[i].addEventListener('submit', function(event) {            
+                    +                  event.preventDefault();            
+                    +                  });            
+                    +                }            
+                    +              }             
+                    +              window.addEventListener("load", functionInit, true);            
+                    +                          
+                    +              //INITIALIZE FUNCTIONS ONLOAD            
+                    +              function functionInit(){            
+                    +                $('#spinnerModal').modal('show');              
+                    +                preventFormSubmit();            
+                    +                getLastTenRows();            
+                    +                //createEmployeesDropdown();            
+                    +              }            
+                    +            
+                    +              function getServerDate() {            
+                    +              var fechaActual = new Date();            
+                    +              var options = { year: 'numeric', month: '2-digit', day: '2-digit' };            
+                    +              var fechaFormateada = fechaActual.toLocaleDateString('es-ES', options);            
+                    +              return fechaFormateada;            
+                    +            }            
+                    +            
+                    +              //HANDLE FORM SUBMISSION            
+                    +              function handleFormSubmit(formObject) {            
+                    +                $('#spinnerModal').modal('show');            
+                    +                google.script.run.withSuccessHandler(createTable).processForm(formObject);            
+                    +                document.getElementById("recordDetails").reset();            
+                    +              }            
+                    +                          
+                    +              //FUNCION BORRAR DE LOS BOTONES AUXILIARES            
+                    +              function deleteRecord(el) {            
+                    +                 var result = confirm("Want to delete?");            
+                    +                 if (result) {            
+                    +                   $('#spinnerModal').modal('show');            
+                    +                   var recordId = el.parentNode.parentNode.cells[2].innerHTML;            
+                    +                   google.script.run.withSuccessHandler(createTable).deleteRecord(recordId);            
+                    +                   document.getElementById("recordDetails").reset();            
+                    +                 }            
+                    +               }            
+                    +                           
+                    +              //GET LAST 10 ROWS            
+                    +              function getLastTenRows(){            
+                    +               google.script.run.withSuccessHandler(createTable).getLastTenRecords();            
+                    +              }            
+                    +            // //FUNCION EDITAR DE LOS BOTONES AUXILIARES            
+                    +            function editRecord(el){            
+                    +            $('#spinnerModal').modal('show');            
+                    +            let id = el.parentNode.parentNode.cells[2].innerHTML;            
+                    +            google.script.run.withSuccessHandler(populateForm).getRecordById(id);            
+                    +            //Logger.log(id)            
+                    +            }            
+                    +            
+                    +              function getServerDate() {            
+                    +              var fechaActual = new Date();            
+                    +              var options = { year: 'numeric', month: '2-digit', day: '2-digit' };            
+                    +              var fechaFormateada = fechaActual.toLocaleDateString('es-ES', options);            
+                    +              //Logger.log(fechaFormateada)            
+                    +              return fechaFormateada;            
+                    +            }            
+                    +            
+                    +            //google.script.run.withSuccessHandler(fillDate).getServerDate();            
+                    +            
+                    +              function populateForm(data){            
+                    +                $('#spinnerModal').modal('hide');            
+                    +                document.getElementById('recId').value = data[0][0];            
+                    +                document.getElementById('regDate').value = data[0][1];            
+                    +                document.getElementById('leaderName').value = data[0][2];            
+                    +                document.getElementById('bambooCode').value = data[0][3];            
+                    +                document.getElementById('contributorName').value = data[0][4];            
+                    +                document.getElementById('dateOvertime').value = data[0][5];            
+                    +                document.getElementById('month').value = data[0][6];            
+                    +                document.getElementById('startTime').value = data[0][7];            
+                    +                document.getElementById('endTime').value = data[0][8];            
+                    +                document.getElementById('reason').value = data[0][9];            
+                    +                document.getElementById('day').value = data[0][10];            
+                    +                document.getElementById('type1').value = data[0][11];            
+                    +                document.getElementById('type2').value = data[0][12];            
+                    +                document.getElementById('type3').value = data[0][13];            
+                    +                document.getElementById('type4').value = data[0][14];            
+                    +                document.getElementById("message").innerHTML = "<div class='alert alert-warning' role='alert'>Update Record [ID: "+data[0][0]+"]</div>";            
+                    +              }            
+                    +            
+                    +              //CREATE THE DATA TABLE            
+                    +              function createTable(dataArray) {            
+                    +                console.log('Create table ', dataArray);            
+                    +                $('#spinnerModal').modal('hide');            
+                    +              if (dataArray && dataArray.length) {            
+                    +                var result =            
+                    +                  "<table class='table table-sm' style='font-size:0.8em'>" +            
+                    +                  "<thead style='white-space: nowrap'>" +            
+                    +                  "<tr>" +            
+                    +                  //"<th scope='col'>Delete</th>" +            
+                    +                  //"<th scope='col'>Edit</th>" +            
+                    +                  "<th scope='col' style='display:none;'>ID</th>" + // Hide the ID column header            
+                    +                  "<th scope='col'>Registration <br> Date </br> </th>" +            
+                    +                  "<th scope='col'>Bamboo <br> Code </br> </th>" +            
+                    +                  "<th scope='col'>Contributor <br>Name</br></th>" +            
+                    +                  "<th scope='col'>Date <br>Overtime</br></th>" +            
+                    +                  "<th scope='col'>Registration <br>Month</br></th>" +            
+                    +                  "<th scope='col'>Start <br>Time</br></th>" +            
+                    +                  "<th scope='col'>End <br>Time</br></th>" +            
+                    +                  "<th scope='col'>Reason</th>" +            
+                    +                  "<th scope='col'>Week <br>Day</br></th>" +            
+                    +                  //"<th scope='col'>Type 1</th>" +            
+                    +                  //"<th scope='col'>Type 2</th>" +            
+                    +                  //"<th scope='col'>Type 3</th>" +            
+                    +                  //"<th scope='col'>Type 4</th>" +            
+                    +                  "</tr>" +            
+                    +                  "</thead>";            
+                    +                for (var i = 0; i < dataArray.length; i++) {            
+                    +            //BOTONES EDIT Y DELETE            
+                    +                   //result += "<tr>";            
+                    +                   //result +=            
+                    +                     //"<td><button type='button' class='btn btn-dark btn-custom deleteBtn' onclick='deleteRecord(this);'>Delete</button></td>";            
+                    +                   //result +=            
+                    +                     //"<td><button type='button' class='btn btn-success btn-custom editBtn' onclick='editRecord(this);'>Edit</button></td>";            
+                    +                  for (var j = 0; j < dataArray[i].length; j++) {            
+                    +                    if (j === 0) {            
+                    +                      result +=            
+                    +                        "<td style='display:none;'>" + dataArray[i][j] + "</td>"; // Hide the ID column data            
+                    +                    }else if(j === 2){            
+                    +                      result +=            
+                    +                        "<td style='display:none;'>" + dataArray[i][j] + "</td>"; // Hide the Description column data            
+                    +                    }else if(j === 11){            
+                    +                      break;            
+                    +                    } else {            
+                    +                      result += "<td>" + dataArray[i][j] + "</td>";            
+                    +                    }            
+                    +                  }            
+                    +                  result += "</tr>";            
+                    +                }            
+                    +                result += "</table>";            
+                    +                var div = document.getElementById("dataTable");            
+                    +                div.innerHTML = result;            
+                    +                document.getElementById("message").innerHTML = "";            
+                    +              } else {            
+                    +                var div = document.getElementById("dataTable");            
+                    +                div.innerHTML = "Data not found!";            
+                    +              }            
+                    +            }            
+                    +            
+                    +            //SEARCH RECORDS            
+                    +            function handleSearchForm(formObject) {            
+                    +              $('#spinnerModal').modal('show');            
+                    +              google.script.run.withSuccessHandler(createTable).searchRecords(formObject);            
+                    +              document.getElementById("search-form").reset();            
+                    +            }            
+                    +            
+                    +            
+                    +              function getAllRecords(){            
+                    +                $('#spinnerModal').modal('show');            
+                    +                google.script.run.withSuccessHandler(createTable).getAllRecords();            
+                    +                document.getElementById("recordDetails").reset();            
+                    +              }            
+                    +                          
+                    +              function fillInputs() {            
+                    +                const regisDate = document.getElementById("regDate");            
+                    +                const dateInput = document.getElementById("dateOvertime");            
+                    +                const dayInput = document.getElementById("day");            
+                    +                const monthInput = document.getElementById("month");            
+                    +            
+                    +                const selectedDate = new Date(dateInput.value);            
+                    +                selectedDate.setDate(selectedDate.getDate() + 1);            
+                    +                const options = { weekday: 'long', month: 'long' };            
+                    +                const formattedDate = new Intl.DateTimeFormat('en-EN', options).format(selectedDate);            
+                    +            
+                    +                const parts = formattedDate.split(' ');            
+                    +                dayInput.value = parts[1];            
+                    +                monthInput.value = parts[0];            
+                    +              }            
+                    +            
+                    +            
+                    +            
+                    +              </script>            
+        @@ -1,0 +1,80 @@    
+                    +            <form id="recordDetails" onsubmit="handleFormSubmit(this)">            
+                    +              <div class="first-container">            
+                    +                <p class="h4 mb-4 text-center">Record Details</p>            
+                    +              </div>            
+                    +              <div id="message"></div>            
+                    +              <input type="text" id="recId" name="recId" value="" style="display: none">            
+                    +                          
+                    +              <div class="mb-1">            
+                    +                <div class="input-container cont">            
+                    +                  <label for="contributorName" class="form-label">Contributor: </label>            
+                    +                  <input class="form-control" list="datalistOptions" id="contributorName" name="contributorName" placeholder="Click to select..." required onchange="loadInfo(this)">            
+                    +                  <datalist id="datalistOptions">            
+                    +                  </datalist>            
+                    +                  <label for="bambooCode" class="form-label">Bamboo code:</label>            
+                    +                  <input type="number" id="bambooCode" name="bambooCode" class="form-control form-control-sm" required>            
+                    +                  <label for="leaderName" class="form-label">Leader Name:</label>            
+                    +                  <input type="text" width="100%" id="leaderName" name="leaderName" class="form-control form-control-sm" required>            
+                    +                </div>            
+                    +              </div>            
+                    +            
+                    +            
+                    +              <div class="mb-1">            
+                    +                            
+                    +                <div class="input-container">            
+                    +                  <label for="regDate" class="form-label" style="display: none">Registration Date:</label>            
+                    +                  <input type="date" id="regDate" name="regDate" value="" class="form-control form-control-sm" style="display: none">            
+                    +                </div>            
+                    +                <div class="dt-div">            
+                    +                  <div class="input-container">            
+                    +                    <label for="dateOvertime" class="form-label">Date Overtime:</label>            
+                    +                    <input type="date" id="dateOvertime" name="dateOvertime" class="form-control form-control-sm" onchange="fillInputs()" required >            
+                    +                  </div>            
+                    +                  <div class="input-container">            
+                    +                    <label for="month" class="form-label">Month:</label>            
+                    +                    <input type="text" id="month" name="month" class="form-control form-control-sm" required>            
+                    +                  </div>            
+                    +                  <div class="input-container">            
+                    +                    <label for="day" class="form-label">Day:</label>            
+                    +                    <input type="text" id="day" name="day" class="form-control form-control-sm" required>            
+                    +                  </div>            
+                    +                </div>            
+                    +              </div>            
+                    +            
+                    +              <div class="mb-2">            
+                    +                <div class="input-container">            
+                    +                  <label for="startTime" class="form-label">Start Time:</label>            
+                    +                  <input type="time" id="startTime" name="startTime" class="form-control form-control-sm" required>            
+                    +                </div>            
+                    +                <div class="input-container">            
+                    +                  <label for="endTime" class="form-label">End Time:</label>            
+                    +                  <input type="time" id="endTime" name="endTime" class="form-control form-control-sm" required>            
+                    +                </div>            
+                    +              </div>            
+                    +            
+                    +              <div class="mb-1">            
+                    +                <label for="reason" class="form-label">Reason:</label>            
+                    +                <textarea id="reason" name="reason" class="form-control form-control-sm" rows="2"></textarea>            
+                    +              </div>              
+                    +              <div class="mb-2">            
+                    +                <div class="input-container">            
+                    +                  <label for="type1" class="form-label" style="display: none">Type 1:</label>            
+                    +                  <input type="number" id="type1" name="type1" class="form-control" style="display: none" value="0">            
+                    +                </div>            
+                    +                <div class="input-container">            
+                    +                  <label for="type2" class="form-label" style="display: none">Type 2:</label>            
+                    +                  <input type="number" id="type2" name="type2" class="form-control" style="display: none"value="0">            
+                    +                </div>            
+                    +                <div class="input-container">            
+                    +                  <label for="type3" class="form-label" style="display: none">Type 3:</label>            
+                    +                  <input type="number" id="type3" name="type3" class="form-control" style="display: none"value="0">            
+                    +                </div>            
+                    +                <div class="input-container">            
+                    +                  <label for="type4" class="form-label" style="display: none">Type 4:</label>            
+                    +                  <input type="number" id="type4" name="type4" class="form-control" style="display: none"value="0">            
+                    +                </div>            
+                    +              </div>            
+                    +                <div class="btn-submit">            
+                    +                  <button type="submit" class="btn btn-outline-success" >Submit</button>            
+                    +                </div>            
+                    +            </form>            
+        @@ -1,0 +1,21 @@    
+                    +            <div class="first-container">            
+                    +              <p class="h4 mb-4 text-center">Historical Records</p>            
+                    +            </div>            
+                    +            <!-- SEARCH FORM-->            
+                    +            <form id="search-form" class="form-inline" onsubmit="handleSearchForm(this)">            
+                    +              <div class="input-group">            
+                    +                <input type="text" class="form-control form-control-sm mb-2" id="searchText" name="searchText" placeholder="Search" required>            
+                    +                <button type="submit" class="btn btn-sm btn btn-outline-success mb-2">Search</button>            
+                    +              </div>            
+                    +            </form>            
+                    +            <!-- END - SEARCH FORM-->            
+                    +            
+                    +            <div class="table-responsive">            
+                    +              <div id="dataTable">            
+                    +                <!-- The Data Table is inserted here by JavaScript -->            
+                    +              </div>            
+                    +            </div>            
+                    +            <br>            
+                    +            <div class="btn-submit">            
+                    +              <button type="button" class="btn btn-success btn-sm" onclick="getAllRecords()">Get ALL Data</button>            
+                    +            </div>              
+        @@ -1,0 +1,76 @@    
+                    +            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet"            
+                    +              integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">            
+                    +            <style>            
+                    +                          
+                    +              body{            
+                    +                padding-bottom: 1rem;            
+                    +              }            
+                    +            
+                    +              .btn-custom {            
+                    +                font-size: 0.5rem;            
+                    +                padding: 0.25rem 0.5rem;            
+                    +                            
+                    +              }            
+                    +              .mb-2{            
+                    +                display: flex;            
+                    +                flex: column;            
+                    +                justify-content: space-between;            
+                    +              }            
+                    +            
+                    +              #Logo {            
+                    +                width: 150px;            
+                    +                height: 100px;             
+                    +                transition: all 0.5s ease;             
+                    +              }            
+                    +            
+                    +              #Logo:hover {            
+                    +                transform: scale(1.1);             
+                    +            
+                    +              }            
+                    +            
+                    +              #bambooCode, #leaderName, #month, #day{            
+                    +                background: #c0b8b8;            
+                    +              }            
+                    +            
+                    +              .dt-div{            
+                    +                display: flex;            
+                    +                flex: column;            
+                    +                justify-content: space-between;            
+                    +              }            
+                    +            
+                    +              .titulo {            
+                    +                margin-right: 0.1rem;            
+                    +                text-align: center;            
+                    +              }            
+                    +            
+                    +              .input-container cont {            
+                    +                width: 3.5rem            
+                    +                display: inline-block;            
+                    +              }            
+                    +              .input-container input {            
+                    +                margin-right: 0.1rem;            
+                    +                margin-bottom: 1rem;             
+                    +                flex: 1;             
+                    +              }            
+                    +              .img-logo{            
+                    +                padding: 2rem 2rem;            
+                    +                text-align: center;            
+                    +                            
+                    +              }            
+                    +              .first-container{            
+                    +                padding: 1rem 0.5rem;            
+                    +              }            
+                    +              .table table-sm{            
+                    +                text-align: center;            
+                    +              }            
+                    +              .form-label{            
+                    +                font-weight: bold;            
+                    +                margin: 0rem;            
+                    +              }            
+                    +            
+                    +              .btn-submit{            
+                    +                display:flex;            
+                    +                justify-content: center;            
+                    +              }            
+                    +            
+                    +            </style>            
+        @@ -1,0 +1,13 @@    
+                    +            <div class="modal fade" id="spinnerModal" tabindex="-1" role="dialog" aria-labelledby="spinnerModalLabel"            
+                    +              aria-hidden="true">            
+                    +              <div class="modal-dialog modal-dialog-centered" role="document">            
+                    +                <div class="modal-content">            
+                    +                  <div class="modal-body text-center">            
+                    +                    <div class="spinner-border" role="status">            
+                    +                      <span class="visually-hidden">Loading...</span>            
+                    +                    </div>            
+                    +                    <p class="mt-3">Loading...</p>            
+                    +                  </div>            
+                    +                </div>            
+                    +              </div>            
+                    +            </div>            
+        @@ -1,0 +1,9 @@    
+                    +            <!DOCTYPE html>            
+                    +            <html>            
+                    +              <head>            
+                    +                <base target="_top">            
+                    +              </head>            
+                    +              <body>            
+                    +                            
+                    +              </body>            
+                    +            </html>            
+        @@ -1,0 +1,58 @@    
+                    +            function onEditTrigger(e) {            
+                    +              var targetSpreadsheetId = "1tnJfW5_RfATbm80ODaB7Z2CJU4wQUSkq0kb3pXSQPmU"; // Reemplaza con el ID de tu libro de cálculo objetivo            
+                    +              onEdit(e, targetSpreadsheetId);            
+                    +            }            
+                    +            function onEdit(e, targetSpreadsheetId) {            
+                    +              // Abre el libro de cálculo específico utilizando el ID proporcionado.            
+                    +              var spreadsheet = SpreadsheetApp.openById(targetSpreadsheetId);            
+                    +              var sheet = spreadsheet.getSheetByName("Data");            
+                    +              if (sheet) {            
+                    +                var row = e.range.getRow();            
+                    +                var startHour = new Date(sheet.getRange(row, 8).getValue());            
+                    +                var endHour = new Date(sheet.getRange(row, 9).getValue());            
+                    +                var dayOfWeek = sheet.getRange(row, 11).getValue(); // Debe contener el nombre del día en inglés            
+                    +                // Mapeo de nombres de días en inglés a números            
+                    +                var dayOfWeekMapping = {            
+                    +                  "Sunday": 7,            
+                    +                  "Monday": 1,            
+                    +                  "Tuesday": 2,            
+                    +                  "Wednesday": 3,            
+                    +                  "Thursday": 4,            
+                    +                  "Friday": 5,            
+                    +                  "Saturday": 6            
+                    +                };            
+                    +                var dayOfWeekNumber = dayOfWeekMapping[dayOfWeek]; // Convertir el nombre del día en número            
+                    +                var horasSheet = spreadsheet.getSheetByName("Types");            
+                    +                var horasData = horasSheet.getRange(2, 2, 21, 4).getValues(); // Asumiendo 21 filas en la hoja "Types".            
+                    +                var tipo1Hours = 0;            
+                    +                var tipo2Hours = 0;            
+                    +                var tipo3Hours = 0;            
+                    +                var tipo4Hours = 0;            
+                    +                for (var i = 0; i < horasData.length; i++) {            
+                    +                  if (horasData[i][3] == dayOfWeekNumber) {            
+                    +                    var startComparison = new Date(horasData[i][1]);            
+                    +                    var endComparison = new Date(horasData[i][2]);            
+                    +                    if (startHour <= endComparison && endHour >= startComparison) {            
+                    +                      var overlapStart = (startHour > startComparison) ? startHour : startComparison;            
+                    +                      var overlapEnd = (endHour < endComparison) ? endHour : endComparison;            
+                    +                      var overlapHours = (overlapEnd - overlapStart) / (1000 * 60 * 60);            
+                    +                      if (horasData[i][0] == 1) {            
+                    +                        tipo1Hours += overlapHours;            
+                    +                      } else if (horasData[i][0] == 2) {            
+                    +                        tipo2Hours += overlapHours;            
+                    +                      } else if (horasData[i][0] == 3) {            
+                    +                        tipo3Hours += overlapHours;            
+                    +                      } else if (horasData[i][0] == 4) {            
+                    +                        tipo4Hours += overlapHours;            
+                    +                      }            
+                    +                    }            
+                    +                  }            
+                    +                }            
+                    +                sheet.getRange(row, 12).setValue(tipo1Hours);            
+                    +                sheet.getRange(row, 13).setValue(tipo2Hours);            
+                    +                sheet.getRange(row, 14).setValue(tipo3Hours);            
+                    +                sheet.getRange(row, 15).setValue(tipo4Hours);            
+                    +              } else {            
+                    +                Logger.log("No se encontró la hoja 'Data' en el libro actual.");            
+                    +              }            
+                    +            }            
